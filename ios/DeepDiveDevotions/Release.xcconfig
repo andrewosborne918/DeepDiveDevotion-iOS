@@ -1,0 +1,4 @@
+PRODUCT_BUNDLE_IDENTIFIER = com.aosborne.DeepDiveDevotions
+SWIFT_VERSION = 5.0
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+API_BASE_URL = https://api.deepdivedevotions.com/v1
