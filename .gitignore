@@ -1,0 +1,26 @@
+# Backend
+backend/.env
+backend/node_modules/
+backend/dist/
+
+# iOS
+ios/**/*.xcodeproj/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/
+ios/**/DerivedData/
+ios/**/.build/
+ios/**/Pods/
+ios/**/App/Debug.xcconfig
+ios/**/App/Release.xcconfig
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Secrets
+*.p8
+*service-account*.json
+*.pem
+
+# Logs
+*.log
+npm-debug.log*
