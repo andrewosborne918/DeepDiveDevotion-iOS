@@ -15,6 +15,7 @@ struct PlanDetailView: View {
     @State private var errorMessage: String?
     @State private var pendingStep: PlanStep?
     @State private var pendingEpisodeId: String?
+    @State private var hideCompleted: Bool = false
 
     private var isActivePlan: Bool { planStore.activePlanId == plan.id }
 
@@ -135,15 +136,35 @@ struct PlanDetailView: View {
     // MARK: Steps List
 
     private var stepsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Readings")
-                .font(.headline)
-                .foregroundColor(.dddIvory)
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 12)
+        let visibleSteps = hideCompleted
+            ? plan.steps.filter { !planStore.isStepComplete($0) }
+            : plan.steps
 
-            ForEach(plan.steps) { step in
+        let completedCount = plan.steps.filter { planStore.isStepComplete($0) }.count
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Readings")
+                    .font(.headline)
+                    .foregroundColor(.dddIvory)
+                Spacer()
+                if completedCount > 0 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            hideCompleted.toggle()
+                        }
+                    } label: {
+                        Text(hideCompleted ? "Show Completed" : "Hide Completed")
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(.dddGold)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            ForEach(visibleSteps) { step in
                 PlanStepRow(
                     step: step,
                     isComplete: planStore.isStepComplete(step),

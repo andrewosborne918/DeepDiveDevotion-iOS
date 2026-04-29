@@ -15,6 +15,7 @@ struct ContentView: View {
                     .tag(0)
 
                 ChaptersView()
+                    .environmentObject(planStore)
                     .tabItem { Label("Browse", systemImage: "books.vertical") }
                     .tag(1)
 
@@ -70,6 +71,7 @@ struct ContentView: View {
                         EpisodeDetailView(episode: nowPlaying)
                     }
                     .environmentObject(player)
+                    .environmentObject(planStore)
                 }
             }
         }

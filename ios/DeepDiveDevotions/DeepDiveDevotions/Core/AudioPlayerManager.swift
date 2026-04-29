@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import MediaPlayer
 
 @MainActor
 final class AudioPlayerManager: ObservableObject {
@@ -29,6 +30,71 @@ final class AudioPlayerManager: ObservableObject {
            let episodes = try? JSONDecoder().decode([Episode].self, from: data) {
             self.recentlyPlayed = episodes
         }
+        setupAudioSession()
+        setupRemoteControls()
+    }
+
+    private func setupAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetooth])
+            try session.setActive(true)
+        } catch {
+            print("Audio session setup error: \(error)")
+        }
+    }
+
+    private func setupRemoteControls() {
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.addTarget { [weak self] _ in
+            self?.toggle(); return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            self?.toggle(); return .success
+        }
+        center.skipForwardCommand.preferredIntervals = [30]
+        center.skipForwardCommand.addTarget { [weak self] _ in
+            self?.skip(30); return .success
+        }
+        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipBackwardCommand.addTarget { [weak self] _ in
+            self?.skip(-15); return .success
+        }
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let e = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            self?.seek(to: e.positionTime)
+            return .success
+        }
+    }
+
+    private func updateNowPlaying() {
+        guard let episode = currentEpisode else { return }
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: episode.title,
+            MPMediaItemPropertyArtist: "Deep Dive Devotions",
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackRate) : 0.0,
+        ]
+        if let ref = episode.scriptureReference {
+            info[MPMediaItemPropertyAlbumTitle] = ref
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+
+        // Load thumbnail asynchronously
+        if let thumbURL = episode.thumbnailURL {
+            Task.detached {
+                if let data = try? Data(contentsOf: thumbURL),
+                   let image = UIImage(data: data) {
+                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                    var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                    updated[MPMediaItemPropertyArtwork] = artwork
+                    await MainActor.run {
+                        MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
+                    }
+                }
+            }
+        }
     }
 
     func play(episode: Episode) {
@@ -50,6 +116,7 @@ final class AudioPlayerManager: ObservableObject {
         player?.play()
         player?.rate = playbackRate
         isPlaying = true
+        updateNowPlaying()
     }
 
     func toggle() {
@@ -62,6 +129,7 @@ final class AudioPlayerManager: ObservableObject {
             player.rate = playbackRate
             isPlaying = true
         }
+        updateNowPlaying()
     }
 
     func seek(to seconds: Double) {
@@ -87,6 +155,7 @@ final class AudioPlayerManager: ObservableObject {
             if let id = self.currentEpisode?.id {
                 self.resumePositions[id] = self.currentTime
             }
+            self.updateNowPlaying()
         }
 
         // Notify when episode plays to end

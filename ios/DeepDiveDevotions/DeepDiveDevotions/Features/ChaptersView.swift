@@ -9,6 +9,7 @@ struct ChaptersView: View {
     @State private var selectedChapter: Int?
     @State private var episodesByChapter: [Int: Episode] = [:]
     @State private var navigationEpisode: Episode?
+    @State private var overviewEpisode: Episode?
     @State private var error: String?
     @State private var isLoadingBooks = false
     @State private var isLoadingBookEpisodes = false
@@ -137,6 +138,19 @@ struct ChaptersView: View {
                             .foregroundStyle(Color.dddGoldLight)
 
                         LazyVGrid(columns: columns, spacing: 10) {
+                            // Book Overview cell (ℹ)
+                            if let overview = overviewEpisode {
+                                NavigationLink(destination: EpisodeDetailView(episode: overview)) {
+                                    Image(systemName: "info.circle")
+                                        .font(.system(size: 24, weight: .medium))
+                                        .foregroundStyle(Color.dddGold)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 54)
+                                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.dddGold.opacity(0.1)))
+                                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.dddGold.opacity(0.6), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
                             ForEach(chapters, id: \.self) { chapter in
                                 NavigationLink(destination: episodesByChapter[chapter].map { EpisodeDetailView(episode: $0) }) {
                                     Text("\(chapter)")
@@ -259,19 +273,23 @@ struct ChaptersView: View {
         selectedBook = book
         bookWheelSelection = book
         selectedChapter = nil
+        overviewEpisode = nil
         isLoadingBookEpisodes = true
         error = nil
         defer { isLoadingBookEpisodes = false }
         do {
-            let episodes = try await APIClient.shared.fetchEpisodes(book: book)
+            async let episodesFetch = APIClient.shared.fetchEpisodes(book: book)
+            async let overviewFetch = APIClient.shared.fetchOverviewEpisode(book: book)
+            let (episodes, overview) = try await (episodesFetch, overviewFetch)
             var map: [Int: Episode] = [:]
             for ep in episodes {
-                if let chapter = ep.chapterNumber {
+                if let chapter = ep.chapterNumber, chapter > 0 {
                     map[chapter] = ep
                 }
             }
             episodesByChapter = map
-            } catch {
+            overviewEpisode = overview
+        } catch {
             self.error = error.localizedDescription
         }
     }
