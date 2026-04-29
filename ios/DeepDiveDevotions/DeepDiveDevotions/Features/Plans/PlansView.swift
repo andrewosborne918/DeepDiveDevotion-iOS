@@ -229,6 +229,8 @@ private struct ActiveJourneyBlock: View {
     let plan: ReadingPlan
     @Binding var selectedPlan: ReadingPlan?
 
+    @State private var showUpdateSheet = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header bar
@@ -241,8 +243,8 @@ private struct ActiveJourneyBlock: View {
                         .textCase(.uppercase)
                 }
                 Spacer()
-                Button("Change") {
-                    planStore.abandonPlan()
+                Button("Update") {
+                    showUpdateSheet = true
                 }
                 .font(.caption.weight(.medium))
                 .foregroundColor(.dddIvory.opacity(0.45))
@@ -316,6 +318,170 @@ private struct ActiveJourneyBlock: View {
                         .strokeBorder(Color.dddGold.opacity(0.45), lineWidth: 1)
                 )
         )
+        .sheet(isPresented: $showUpdateSheet) {
+            PlanProgressUpdateSheet(plan: plan)
+                .environmentObject(planStore)
+        }
+    }
+}
+
+// MARK: - Plan Progress Update Sheet
+
+private struct PlanProgressUpdateSheet: View {
+    @EnvironmentObject var planStore: PlanStore
+    let plan: ReadingPlan
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var dayInput: String = ""
+    @State private var showResetConfirm = false
+    @State private var showSaveConfirm  = false
+    @State private var inputError: String?
+
+    private var currentDay: Int { planStore.currentDayIndex + 1 }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.dddSurfaceNavy.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 24) {
+
+                        // Current status
+                        VStack(spacing: 6) {
+                            Text(plan.title)
+                                .font(.system(size: 20, weight: .bold, design: .serif))
+                                .foregroundColor(.dddIvory)
+                                .multilineTextAlignment(.center)
+                            Text("Currently on Day \(currentDay) of \(plan.totalDays)")
+                                .font(.subheadline)
+                                .foregroundColor(.dddGoldLight.opacity(0.8))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
+
+                        Divider().background(Color.white.opacity(0.1))
+
+                        // Jump to day
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("Jump to a Different Day", systemImage: "arrow.forward.circle")
+                                .font(.headline)
+                                .foregroundColor(.dddIvory)
+
+                            Text("Enter the day number you want to continue from. All days before it will be marked complete.")
+                                .font(.caption)
+                                .foregroundColor(.dddIvory.opacity(0.5))
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack(spacing: 12) {
+                                TextField("Day (1–\(plan.totalDays))", text: $dayInput)
+                                    .keyboardType(.numberPad)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 11)
+                                    .background(Color.white.opacity(0.08))
+                                    .cornerRadius(10)
+                                    .foregroundColor(.dddIvory)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .strokeBorder(inputError != nil ? Color.red.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1)
+                                    )
+
+                                Button("Set Day") {
+                                    applyDayInput()
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.dddSurfaceBlack)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 11)
+                                .background(Color.dddGold)
+                                .cornerRadius(10)
+                            }
+
+                            if let err = inputError {
+                                Text(err)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(16)
+                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+
+                        Divider().background(Color.white.opacity(0.1))
+
+                        // Reset
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Reset Plan", systemImage: "arrow.counterclockwise")
+                                .font(.headline)
+                                .foregroundColor(.dddIvory)
+                            Text("This will clear all your progress and restart from Day 1. Your plan stays active.")
+                                .font(.caption)
+                                .foregroundColor(.dddIvory.opacity(0.5))
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Button {
+                                showResetConfirm = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.counterclockwise")
+                                    Text("Reset to Day 1")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color.red.opacity(0.15))
+                                .foregroundColor(.red)
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.red.opacity(0.35), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .confirmationDialog("Reset all progress?", isPresented: $showResetConfirm, titleVisibility: .visible) {
+                                Button("Reset to Day 1", role: .destructive) {
+                                    planStore.resetProgress()
+                                    dismiss()
+                                }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("This cannot be undone.")
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(16)
+                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
+                }
+            }
+            .navigationTitle("Update Progress")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color.dddSurfaceNavy, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(.dddGold)
+                }
+            }
+        }
+    }
+
+    private func applyDayInput() {
+        inputError = nil
+        guard let day = Int(dayInput) else {
+            inputError = "Please enter a valid number."
+            return
+        }
+        guard day >= 1, day <= plan.totalDays else {
+            inputError = "Day must be between 1 and \(plan.totalDays)."
+            return
+        }
+        // jumpToDay takes 0-based index; user enters 1-based day
+        planStore.jumpToDay(day - 1)
+        dismiss()
     }
 }
 

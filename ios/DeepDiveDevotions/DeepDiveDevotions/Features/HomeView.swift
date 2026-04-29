@@ -4,6 +4,7 @@ struct HomeView: View {
     var onBrowseAll: (() -> Void)? = nil
 
     @State private var latest: [Episode] = []
+    @State private var todaysEpisode: Episode?
     @State private var selectedEpisode: Episode?
     @State private var error: String?
     @State private var isLoading = false
@@ -32,8 +33,8 @@ struct HomeView: View {
                             // Primary CTA
                             if let plan = planStore.activePlan, let step = planStore.nextStep, !planStore.isCompleted {
                                 resumePlanCTA(plan: plan, step: step)
-                            } else if let hero = latest.first {
-                                primaryCTA(episode: hero)
+                            } else if let today = todaysEpisode ?? latest.first {
+                                primaryCTA(episode: today)
                             } else if isLoading {
                                 loadingCTA
                             }
@@ -391,8 +392,13 @@ struct HomeView: View {
     // MARK: Recent Episodes
 
     private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Recent Episodes")
+        let episodes = player.recentlyPlayed.isEmpty
+            ? Array(latest.prefix(3))
+            : Array(player.recentlyPlayed.prefix(3))
+        let sectionTitle = player.recentlyPlayed.isEmpty ? "Recent Episodes" : "Recently Played"
+
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(sectionTitle)
                 .font(.system(size: 13, weight: .semibold))
                 .kerning(1.5)
                 .textCase(.uppercase)
@@ -401,7 +407,7 @@ struct HomeView: View {
                 .padding(.top, 24)
                 .padding(.bottom, 10)
 
-            ForEach(Array(latest.prefix(3))) { episode in
+            ForEach(Array(episodes)) { episode in
                 Button {
                     selectedEpisode = episode
                 } label: {
@@ -486,7 +492,11 @@ struct HomeView: View {
         error = nil
         defer { isLoading = false }
         do {
-            latest = try await APIClient.shared.fetchLatestEpisodes(limit: 20)
+            async let todayFetch   = APIClient.shared.fetchTodaysEpisode()
+            async let latestFetch  = APIClient.shared.fetchLatestEpisodes(limit: 20)
+            let (today, latestList) = try await (todayFetch, latestFetch)
+            todaysEpisode = today
+            latest = latestList
         } catch {
             self.error = error.localizedDescription
         }

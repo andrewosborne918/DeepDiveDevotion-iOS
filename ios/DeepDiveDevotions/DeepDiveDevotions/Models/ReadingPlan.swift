@@ -106,9 +106,9 @@ extension ReadingPlan {
 
     static let all: [ReadingPlan] = [
         sevenDayStart,
+        fullBible,
         fullOldTestament,
         fullNewTestament,
-        fullBible,
         thirtyDayNT,
         lifeOfJesus,
         earlyChurch,

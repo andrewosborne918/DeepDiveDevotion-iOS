@@ -40,6 +40,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const testament = req.query.testament as string | undefined;
     const sort = (req.query.sort as string) || 'episode_number';
     const order = (req.query.order as string) === 'asc' ? true : false;
+    const dateFilter = req.query.date as string | undefined; // expects YYYY-MM-DD
 
     const validSorts = ['episode_number', 'publish_date', 'title'];
     const sortColumn = validSorts.includes(sort) ? sort : 'episode_number';
@@ -64,6 +65,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     if (book) query = query.ilike('book_name', book);
     if (testament && (testament === 'OT' || testament === 'NT')) {
       query = query.eq('testament', testament);
+    }
+    if (dateFilter && /^\d{4}-\d{2}-\d{2}$/.test(dateFilter)) {
+      query = query.eq('publish_date', dateFilter);
     }
 
     const { data, error, count } = await query;

@@ -108,6 +108,26 @@ final class PlanStore: ObservableObject {
         progress?.completedStepIds.contains(step.id) ?? false
     }
 
+    /// Wipe all progress (back to Day 1).
+    func resetProgress() {
+        guard progress != nil else { return }
+        progress!.completedStepIds = []
+        progress!.completionDates  = [:]
+    }
+
+    /// Mark all steps before `dayIndex` as complete, and clear everything from that day forward.
+    func jumpToDay(_ dayIndex: Int) {
+        guard let plan = activePlan, progress != nil else { return }
+        progress!.completedStepIds = []
+        progress!.completionDates  = [:]
+        let target = min(max(dayIndex, 0), plan.steps.count)
+        for i in 0..<target {
+            let step = plan.steps[i]
+            progress!.completedStepIds.insert(step.id)
+            progress!.completionDates[step.id] = Date()
+        }
+    }
+
     /// Called when audio finishes — marks the plan's next step complete if book/chapter match.
     func markNextStepCompleteIfMatches(book: String, chapter: Int) {
         guard let step = nextStep,

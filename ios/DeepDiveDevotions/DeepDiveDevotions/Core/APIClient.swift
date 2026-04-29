@@ -53,6 +53,14 @@ actor APIClient {
         return response.data
     }
 
+    func fetchTodaysEpisode() async throws -> Episode? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: Date())
+        let response: EpisodesResponse = try await request("/episodes?page=1&limit=1&date=\(today)")
+        return response.data.first
+    }
+
     func fetchBooks() async throws -> [BookSummary] {
         let response: BooksResponse = try await request("/episodes/books")
         return response.data

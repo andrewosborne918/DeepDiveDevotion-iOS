@@ -18,11 +18,17 @@ final class AudioPlayerManager: ObservableObject {
     private var timeObserver: Any?
     private var endObserver: Any?
     private var resumePositions: [String: Double] = [:]
-    private let speedKey = "player_playback_rate"
+    private let speedKey          = "player_playback_rate"
+    private let recentlyPlayedKey  = "player_recently_played"
 
     private init() {
         let saved = UserDefaults.standard.float(forKey: speedKey)
         self.playbackRate = (saved > 0 ? saved : 1.0)
+        // Restore persisted recently-played list
+        if let data = UserDefaults.standard.data(forKey: recentlyPlayedKey),
+           let episodes = try? JSONDecoder().decode([Episode].self, from: data) {
+            self.recentlyPlayed = episodes
+        }
     }
 
     func play(episode: Episode) {
@@ -125,6 +131,10 @@ final class AudioPlayerManager: ObservableObject {
         recentlyPlayed.insert(episode, at: 0)
         if recentlyPlayed.count > 20 {
             recentlyPlayed = Array(recentlyPlayed.prefix(20))
+        }
+        // Persist
+        if let data = try? JSONEncoder().encode(recentlyPlayed) {
+            UserDefaults.standard.set(data, forKey: recentlyPlayedKey)
         }
     }
 }

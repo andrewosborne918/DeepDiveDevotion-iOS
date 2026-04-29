@@ -1,14 +1,47 @@
 import SwiftUI
 
+// MARK: - Bible.com USFM book abbreviations
+private let usfmAbbreviations: [String: String] = [
+    "genesis": "GEN", "exodus": "EXO", "leviticus": "LEV", "numbers": "NUM",
+    "deuteronomy": "DEU", "joshua": "JOS", "judges": "JDG", "ruth": "RUT",
+    "1 samuel": "1SA", "2 samuel": "2SA", "1 kings": "1KI", "2 kings": "2KI",
+    "1 chronicles": "1CH", "2 chronicles": "2CH", "ezra": "EZR", "nehemiah": "NEH",
+    "esther": "EST", "job": "JOB", "psalms": "PSA", "psalm": "PSA",
+    "proverbs": "PRO", "ecclesiastes": "ECC", "song of solomon": "SNG",
+    "song of songs": "SNG", "isaiah": "ISA", "jeremiah": "JER",
+    "lamentations": "LAM", "ezekiel": "EZK", "daniel": "DAN", "hosea": "HOS",
+    "joel": "JOL", "amos": "AMO", "obadiah": "OBA", "jonah": "JON",
+    "micah": "MIC", "nahum": "NAH", "habakkuk": "HAB", "zephaniah": "ZEP",
+    "haggai": "HAG", "zechariah": "ZEC", "malachi": "MAL",
+    "matthew": "MAT", "mark": "MRK", "luke": "LUK", "john": "JHN",
+    "acts": "ACT", "romans": "ROM", "1 corinthians": "1CO", "2 corinthians": "2CO",
+    "galatians": "GAL", "ephesians": "EPH", "philippians": "PHP", "colossians": "COL",
+    "1 thessalonians": "1TH", "2 thessalonians": "2TH", "1 timothy": "1TI",
+    "2 timothy": "2TI", "titus": "TIT", "philemon": "PHM", "hebrews": "HEB",
+    "james": "JAS", "1 peter": "1PE", "2 peter": "2PE", "1 john": "1JN",
+    "2 john": "2JN", "3 john": "3JN", "jude": "JUD", "revelation": "REV"
+]
+
 struct EpisodeDetailView: View {
     let episode: Episode
 
     @EnvironmentObject private var player: AudioPlayerManager
+    @EnvironmentObject private var planStore: PlanStore
     @State private var fullEpisode: Episode?
     @State private var selectedTab = 0
     @State private var error: String?
 
     private var displayEpisode: Episode { fullEpisode ?? episode }
+
+    // Step in the active plan that matches this episode's book/chapter (complete or not)
+    private var matchingPlanStep: PlanStep? {
+        guard let book = displayEpisode.bookName,
+              let chapter = displayEpisode.chapterNumber,
+              let plan = planStore.activePlan else { return nil }
+        return plan.steps.first {
+            $0.bookName.lowercased() == book.lowercased() && $0.chapterNumber == chapter
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -38,22 +71,30 @@ struct EpisodeDetailView: View {
 
                     playbackBlock
 
+                    // Plan completion button — shown when this episode is part of the active plan
+                    if let step = matchingPlanStep {
+                        planMarkCompleteButton(step: step)
+                    }
+
                     HStack(spacing: 0) {
                         tabButton("Transcript", index: 0)
                         tabButton("About", index: 1)
+                        tabButton("Bible", index: 2)
                     }
                     .background(Color.black.opacity(0.22))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
                     if selectedTab == 0 {
                         transcriptView
-                    } else {
+                    } else if selectedTab == 1 {
                         Text(displayEpisode.description ?? "No description available")
                             .foregroundStyle(Color.dddIvory)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(14)
                             .background(Color.black.opacity(0.2))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        bibleView
                     }
 
                     if let error {
@@ -65,6 +106,12 @@ struct EpisodeDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: player.finishedEpisodeId) { _, finishedId in
+            guard let finishedId, finishedId == displayEpisode.id,
+                  let step = matchingPlanStep,
+                  !planStore.isStepComplete(step) else { return }
+            planStore.markStepComplete(step)
+        }
         .task {
             await loadEpisode()
         }
@@ -151,6 +198,94 @@ struct EpisodeDetailView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    // MARK: Plan Mark Complete Button
+
+    @ViewBuilder
+    private func planMarkCompleteButton(step: PlanStep) -> some View {
+        let isComplete = planStore.isStepComplete(step)
+        Button {
+            if !isComplete {
+                planStore.markStepComplete(step)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isComplete ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.title3)
+                Text(isComplete ? "Chapter Complete" : "Mark Complete")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .foregroundColor(isComplete ? .green : .dddSurfaceBlack)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background {
+                if isComplete {
+                    RoundedRectangle(cornerRadius: 14).fill(Color.green.opacity(0.15))
+                } else {
+                    RoundedRectangle(cornerRadius: 14).fill(
+                        LinearGradient(colors: [Color.dddGold, Color.dddGoldLight], startPoint: .leading, endPoint: .trailing)
+                    )
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(isComplete ? Color.green.opacity(0.4) : Color.clear, lineWidth: 1)
+            )
+            .cornerRadius(14)
+        }
+        .buttonStyle(.plain)
+        .disabled(isComplete)
+        .animation(.easeInOut(duration: 0.2), value: isComplete)
+    }
+
+    // MARK: Bible View
+
+    private var bibleView: some View {
+        let book    = displayEpisode.bookName ?? ""
+        let chapter = displayEpisode.chapterNumber ?? 1
+        let abbr    = usfmAbbreviations[book.lowercased()] ?? book.uppercased()
+        let urlStr  = "https://www.bible.com/bible/1/\(abbr).\(chapter)"
+        let url     = URL(string: urlStr)!
+
+        return VStack(spacing: 16) {
+            Image(systemName: "book.closed.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.dddGoldLight)
+
+            VStack(spacing: 4) {
+                Text("Read \(book) \(chapter)")
+                    .font(.system(size: 20, weight: .bold, design: .serif))
+                    .foregroundColor(.dddIvory)
+                Text("Open in Bible.com")
+                    .font(.subheadline)
+                    .foregroundColor(.dddIvory.opacity(0.5))
+            }
+
+            Link(destination: url) {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.up.right.square")
+                    Text("Open Bible.com")
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.dddSurfaceBlack)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: [Color.dddGold, Color.dddGoldLight],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .cornerRadius(14)
+                )
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .padding(14)
+        .background(Color.black.opacity(0.2))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var transcriptView: some View {
