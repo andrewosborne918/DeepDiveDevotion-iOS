@@ -33,6 +33,10 @@ struct HomeView: View {
                             // Primary CTA
                             if let plan = planStore.activePlan, let step = planStore.nextStep, !planStore.isCompleted {
                                 resumePlanCTA(plan: plan, step: step)
+                                // Always show Chapter of the Day underneath for plan users
+                                if let today = todaysEpisode ?? latest.first {
+                                    chapterOfTheDayCTA(episode: today)
+                                }
                             } else if let today = todaysEpisode ?? latest.first {
                                 primaryCTA(episode: today)
                             } else if isLoading {
@@ -191,6 +195,43 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
+    }
+
+    // MARK: Chapter of the Day CTA (shown below plan CTA for plan users)
+
+    private func chapterOfTheDayCTA(episode: Episode) -> some View {
+        Button {
+            selectedEpisode = episode
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.07))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "sun.max.fill")
+                        .foregroundColor(.dddGoldLight)
+                        .font(.callout)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Chapter of the Day")
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                        .foregroundColor(.dddIvory)
+                    Text(episode.scriptureReference ?? episode.title)
+                        .font(.caption)
+                        .foregroundColor(.dddGoldLight.opacity(0.75))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.dddIvory.opacity(0.3))
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 4)
     }
 
     // MARK: Resume Plan CTA
