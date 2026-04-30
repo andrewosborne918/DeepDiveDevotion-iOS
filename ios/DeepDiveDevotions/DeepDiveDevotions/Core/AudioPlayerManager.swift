@@ -35,15 +35,17 @@ final class AudioPlayerManager: ObservableObject {
         setupAudioSession()
         setupRemoteControls()
         setupInterruptionHandling()
+        setupRouteChangeHandling()
     }
 
     private func setupAudioSession() {
+        // Re-affirm category here in case something changed since app launch
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetooth, .allowBluetoothA2DP])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth, .allowBluetoothA2DP])
+            try session.setActive(true)
         } catch {
-            print("Audio session setup error: \(error)")
+            print("[Audio] session setup error: \(error)")
         }
     }
 
@@ -63,12 +65,34 @@ final class AudioPlayerManager: ObservableObject {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 if options.contains(.shouldResume) {
                     Task { @MainActor in
-                        try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+                        try? AVAudioSession.sharedInstance().setActive(true)
                         self.player?.play()
                         self.player?.rate = self.playbackRate
                         self.isPlaying = true
                         self.updateNowPlaying()
                     }
+                }
+            }
+        }
+    }
+
+    private func setupRouteChangeHandling() {
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let info = notification.userInfo,
+                  let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+
+            // Headphones unplugged — pause so audio doesn't blast from speaker unexpectedly
+            if reason == .oldDeviceUnavailable {
+                Task { @MainActor in
+                    self.player?.pause()
+                    self.isPlaying = false
+                    self.updateNowPlaying()
                 }
             }
         }
@@ -132,8 +156,9 @@ final class AudioPlayerManager: ObservableObject {
     func play(episode: Episode) {
         guard let url = episode.audioURL else { return }
 
-        // Ensure session is active before starting playback (important for background/CarPlay)
-        try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+        // Re-activate session every time — ensures recovery after interruptions or route changes
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth, .allowBluetoothA2DP])
+        try? AVAudioSession.sharedInstance().setActive(true)
 
         markRecentlyPlayed(episode)
 
