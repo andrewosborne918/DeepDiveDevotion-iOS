@@ -15,7 +15,7 @@ struct PlanDetailView: View {
     @State private var errorMessage: String?
     @State private var pendingStep: PlanStep?
     @State private var pendingEpisodeId: String?
-    @State private var hideCompleted: Bool = false
+    @AppStorage("plan_hideCompleted") private var hideCompleted: Bool = false
 
     private var isActivePlan: Bool { planStore.activePlanId == plan.id }
 
