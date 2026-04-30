@@ -18,7 +18,9 @@ final class AudioPlayerManager: ObservableObject {
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var endObserver: Any?
+    private var interruptionObserver: Any?
     private var resumePositions: [String: Double] = [:]
+    private var ninetyPercentFired: Set<String> = []
     private let speedKey          = "player_playback_rate"
     private let recentlyPlayedKey  = "player_recently_played"
 
@@ -32,15 +34,43 @@ final class AudioPlayerManager: ObservableObject {
         }
         setupAudioSession()
         setupRemoteControls()
+        setupInterruptionHandling()
     }
 
     private func setupAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetooth])
-            try session.setActive(true)
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay, .allowBluetooth, .allowBluetoothA2DP])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("Audio session setup error: \(error)")
+        }
+    }
+
+    private func setupInterruptionHandling() {
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let info = notification.userInfo,
+                  let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+            if type == .ended {
+                let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    Task { @MainActor in
+                        try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+                        self.player?.play()
+                        self.player?.rate = self.playbackRate
+                        self.isPlaying = true
+                        self.updateNowPlaying()
+                    }
+                }
+            }
         }
     }
 
@@ -75,6 +105,8 @@ final class AudioPlayerManager: ObservableObject {
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackRate) : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
         ]
         if let ref = episode.scriptureReference {
             info[MPMediaItemPropertyAlbumTitle] = ref
@@ -100,12 +132,17 @@ final class AudioPlayerManager: ObservableObject {
     func play(episode: Episode) {
         guard let url = episode.audioURL else { return }
 
+        // Ensure session is active before starting playback (important for background/CarPlay)
+        try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+
         markRecentlyPlayed(episode)
 
         if currentEpisode?.id != episode.id {
             stopObserver()
             player = AVPlayer(url: url)
             currentEpisode = episode
+            ninetyPercentFired.remove(episode.id)
+            finishedEpisodeId = nil
             addObserver()
 
             if let saved = resumePositions[episode.id], saved > 1 {
@@ -154,6 +191,13 @@ final class AudioPlayerManager: ObservableObject {
             self.duration = item.duration.seconds.isFinite ? item.duration.seconds : 1
             if let id = self.currentEpisode?.id {
                 self.resumePositions[id] = self.currentTime
+                // Fire completion at 90% so plan marks the step done before the very end
+                if self.duration > 0,
+                   self.currentTime / self.duration >= 0.9,
+                   !self.ninetyPercentFired.contains(id) {
+                    self.ninetyPercentFired.insert(id)
+                    self.finishedEpisodeId = id
+                }
             }
             self.updateNowPlaying()
         }
