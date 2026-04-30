@@ -44,8 +44,15 @@ private struct PlanCardButtonStyle: ButtonStyle {
 struct PlansView: View {
     @EnvironmentObject var planStore: PlanStore
     @EnvironmentObject var player: AudioPlayerManager
+    @EnvironmentObject var subscriptions: SubscriptionManager
     @State private var selectedPlan: ReadingPlan?
+    @State private var paywallReason: PaywallReason?
     @State private var activeFilter: PathFilter?
+
+    /// Only the Full Bible plan is free
+    private func isLocked(_ plan: ReadingPlan) -> Bool {
+        !subscriptions.isSubscribed && plan.id != "full-bible"
+    }
 
     // Priority order: Topics near top since they're highest engagement
     private let categoryOrder: [PlanCategory] = [
@@ -88,7 +95,11 @@ struct PlansView: View {
                                     PlanCategorySection(
                                         category: category,
                                         plans: plans,
-                                        selectedPlan: $selectedPlan
+                                        selectedPlan: $selectedPlan,
+                                        onLockedTap: { plan in
+                                            paywallReason = .lockedPlan(planTitle: plan.title)
+                                        },
+                                        isLocked: { plan in isLocked(plan) }
                                     )
                                 }
                             }
@@ -104,6 +115,10 @@ struct PlansView: View {
                 PlanDetailView(plan: plan)
                     .environmentObject(planStore)
                     .environmentObject(player)
+            }
+            .sheet(item: $paywallReason) { reason in
+                PaywallView(reason: reason)
+                    .environmentObject(subscriptions)
             }
         }
     }
@@ -184,8 +199,14 @@ struct PlansView: View {
             .padding(.horizontal)
 
             if let startPlan = planStore.catalog.first(where: { $0.id == "7day-start" }) {
-                Button { selectedPlan = startPlan } label: {
-                    FeaturedPlanCard(plan: startPlan)
+                Button {
+                    if isLocked(startPlan) {
+                        paywallReason = .lockedPlan(planTitle: startPlan.title)
+                    } else {
+                        selectedPlan = startPlan
+                    }
+                } label: {
+                    FeaturedPlanCard(plan: startPlan, locked: isLocked(startPlan))
                 }
                 .buttonStyle(PlanCardButtonStyle())
                 .padding(.horizontal)
@@ -212,8 +233,14 @@ struct PlansView: View {
             .padding(.horizontal)
 
             ForEach(filtered) { plan in
-                Button { selectedPlan = plan } label: {
-                    FilteredPlanRow(plan: plan)
+                Button {
+                    if isLocked(plan) {
+                        paywallReason = .lockedPlan(planTitle: plan.title)
+                    } else {
+                        selectedPlan = plan
+                    }
+                } label: {
+                    FilteredPlanRow(plan: plan, locked: isLocked(plan))
                 }
                 .buttonStyle(PlanCardButtonStyle())
                 .padding(.horizontal)
@@ -490,6 +517,7 @@ private struct PlanProgressUpdateSheet: View {
 private struct FeaturedPlanCard: View {
     @EnvironmentObject var planStore: PlanStore
     let plan: ReadingPlan
+    var locked: Bool = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -522,9 +550,9 @@ private struct FeaturedPlanCard: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
+            Image(systemName: locked ? "lock.fill" : "chevron.right")
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.dddGold.opacity(0.6))
+                .foregroundColor(locked ? .dddGold.opacity(0.6) : .dddGold.opacity(0.6))
         }
         .padding(16)
         .background(
@@ -535,14 +563,14 @@ private struct FeaturedPlanCard: View {
                         .strokeBorder(Color.dddGold.opacity(0.3), lineWidth: 1)
                 )
         )
+        .opacity(locked ? 0.75 : 1.0)
     }
 }
-
-// MARK: - Filtered Plan Row (full-width, in filter results)
 
 private struct FilteredPlanRow: View {
     @EnvironmentObject var planStore: PlanStore
     let plan: ReadingPlan
+    var locked: Bool = false
 
     private var isActive: Bool { planStore.activePlanId == plan.id }
 
@@ -552,18 +580,25 @@ private struct FilteredPlanRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(isActive ? Color.dddGold.opacity(0.2) : Color.white.opacity(0.06))
                     .frame(width: 44, height: 44)
-                Image(systemName: plan.category.icon)
+                Image(systemName: locked ? "lock.fill" : plan.category.icon)
                     .font(.callout)
-                    .foregroundColor(isActive ? .dddGold : .dddIvory.opacity(0.6))
+                    .foregroundColor(locked ? .dddGold.opacity(0.6) : (isActive ? .dddGold : .dddIvory.opacity(0.6)))
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(plan.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.dddIvory)
-                    if isActive {
-                        ActiveDot()
+                        .foregroundColor(locked ? .dddIvory.opacity(0.5) : .dddIvory)
+                    if isActive { ActiveDot() }
+                    if locked {
+                        Text("PREMIUM")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.dddGold)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.dddGold.opacity(0.15))
+                            .cornerRadius(4)
                     }
                 }
                 Text(plan.hook)
@@ -578,9 +613,9 @@ private struct FilteredPlanRow: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
+            Image(systemName: locked ? "lock.fill" : "chevron.right")
                 .font(.caption2)
-                .foregroundColor(.dddIvory.opacity(0.3))
+                .foregroundColor(locked ? .dddGold.opacity(0.5) : .dddIvory.opacity(0.3))
         }
         .padding(12)
         .background(
@@ -591,6 +626,7 @@ private struct FilteredPlanRow: View {
                         .strokeBorder(isActive ? Color.dddGold.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1)
                 )
         )
+        .opacity(locked ? 0.75 : 1.0)
     }
 }
 
@@ -600,6 +636,8 @@ private struct PlanCategorySection: View {
     let category: PlanCategory
     let plans: [ReadingPlan]
     @Binding var selectedPlan: ReadingPlan?
+    var onLockedTap: ((ReadingPlan) -> Void)? = nil
+    var isLocked: ((ReadingPlan) -> Bool) = { _ in false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -615,8 +653,14 @@ private struct PlanCategorySection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(plans) { plan in
-                        Button { selectedPlan = plan } label: {
-                            PlanCard(plan: plan)
+                        Button {
+                            if isLocked(plan) {
+                                onLockedTap?(plan)
+                            } else {
+                                selectedPlan = plan
+                            }
+                        } label: {
+                            PlanCard(plan: plan, locked: isLocked(plan))
                         }
                         .buttonStyle(PlanCardButtonStyle())
                     }
@@ -633,52 +677,65 @@ private struct PlanCategorySection: View {
 struct PlanCard: View {
     @EnvironmentObject var planStore: PlanStore
     let plan: ReadingPlan
+    var locked: Bool = false
 
     private var isActive: Bool { planStore.activePlanId == plan.id }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: plan.category.icon)
-                    .font(.caption)
-                    .foregroundColor(.dddGold)
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: plan.category.icon)
+                        .font(.caption)
+                        .foregroundColor(.dddGold)
+                    Spacer()
+                    DifficultyBadge(difficulty: plan.difficulty)
+                }
+
                 Spacer()
-                DifficultyBadge(difficulty: plan.difficulty)
+
+                Text(plan.title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.dddIvory)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(plan.hook)
+                    .font(.caption)
+                    .foregroundColor(.dddIvory.opacity(0.6))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    TimePill(label: plan.durationLabel)
+                    TimePill(label: plan.dailyTimeLabel)
+                }
+
+                if isActive {
+                    ActiveDot(label: "In Progress")
+                }
             }
+            .padding(14)
+            .frame(width: 186, height: 176)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(isActive ? 0.12 : 0.07))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(isActive ? Color.dddGold.opacity(0.65) : Color.white.opacity(0.18), lineWidth: 1)
+                    )
+            )
+            .opacity(locked ? 0.5 : 1.0)
 
-            Spacer()
-
-            Text(plan.title)
-                .font(.subheadline.weight(.bold))
-                .foregroundColor(.dddIvory)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(plan.hook)
-                .font(.caption)
-                .foregroundColor(.dddIvory.opacity(0.6))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 8) {
-                TimePill(label: plan.durationLabel)
-                TimePill(label: plan.dailyTimeLabel)
-            }
-
-            if isActive {
-                ActiveDot(label: "In Progress")
+            if locked {
+                Image(systemName: "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.dddGold)
+                    .padding(6)
+                    .background(Circle().fill(Color.dddSurfaceBlack.opacity(0.85)))
+                    .padding(10)
             }
         }
-        .padding(14)
-        .frame(width: 186, height: 176)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(isActive ? 0.12 : 0.07))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(isActive ? Color.dddGold.opacity(0.65) : Color.white.opacity(0.18), lineWidth: 1)
-                )
-        )
     }
 }
 

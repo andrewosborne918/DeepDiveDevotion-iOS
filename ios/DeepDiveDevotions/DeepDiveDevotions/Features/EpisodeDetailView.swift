@@ -27,9 +27,13 @@ struct EpisodeDetailView: View {
 
     @EnvironmentObject private var player: AudioPlayerManager
     @EnvironmentObject private var planStore: PlanStore
+    @EnvironmentObject private var subscriptions: SubscriptionManager
     @State private var fullEpisode: Episode?
     @State private var selectedTab = 0
     @State private var error: String?
+    @State private var showPaywall = false
+    @State private var isDownloaded = false
+    @State private var isDownloading = false
 
     private var displayEpisode: Episode { fullEpisode ?? episode }
 
@@ -70,6 +74,8 @@ struct EpisodeDetailView: View {
                         .multilineTextAlignment(.center)
 
                     playbackBlock
+
+                    downloadButton
 
                     // Plan completion button — shown when this episode is part of the active plan
                     if let step = matchingPlanStep {
@@ -114,6 +120,11 @@ struct EpisodeDetailView: View {
         }
         .task {
             await loadEpisode()
+            checkIfDownloaded()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(reason: .offlineDownload)
+                .environmentObject(subscriptions)
         }
     }
 
@@ -323,6 +334,80 @@ struct EpisodeDetailView: View {
             .padding(.top, 10)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Download Button
+
+    private var downloadButton: some View {
+        Button {
+            if subscriptions.isSubscribed {
+                if isDownloaded {
+                    deleteDownload()
+                } else {
+                    Task { await downloadEpisode() }
+                }
+            } else {
+                showPaywall = true
+            }
+        } label: {
+            HStack(spacing: 10) {
+                if isDownloading {
+                    ProgressView().tint(.dddSurfaceBlack).scaleEffect(0.85)
+                } else {
+                    Image(systemName: isDownloaded ? "checkmark.circle.fill" : "arrow.down.circle")
+                        .font(.system(size: 18))
+                }
+                Text(isDownloaded ? "Downloaded" : (subscriptions.isSubscribed ? "Download for Offline" : "Download for Offline  🔒"))
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundColor(isDownloaded ? .green : .dddSurfaceBlack)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isDownloaded ? Color.green.opacity(0.15) : Color.dddGoldLight.opacity(0.9))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(isDownloaded ? Color.green.opacity(0.4) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDownloading)
+    }
+
+    // MARK: Download Helpers
+
+    private static func downloadedFileURL(for episode: Episode) -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("episode_\(episode.id).m4a")
+    }
+
+    private func checkIfDownloaded() {
+        isDownloaded = FileManager.default.fileExists(
+            atPath: Self.downloadedFileURL(for: displayEpisode).path
+        )
+    }
+
+    private func downloadEpisode() async {
+        guard let audioURL = displayEpisode.audioURL else { return }
+        isDownloading = true
+        defer { isDownloading = false }
+        do {
+            let (tempURL, _) = try await URLSession.shared.download(from: audioURL)
+            let dest = Self.downloadedFileURL(for: displayEpisode)
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.moveItem(at: tempURL, to: dest)
+            isDownloaded = true
+        } catch {
+            self.error = "Download failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func deleteDownload() {
+        let url = Self.downloadedFileURL(for: displayEpisode)
+        try? FileManager.default.removeItem(at: url)
+        isDownloaded = false
     }
 
     private func loadEpisode() async {

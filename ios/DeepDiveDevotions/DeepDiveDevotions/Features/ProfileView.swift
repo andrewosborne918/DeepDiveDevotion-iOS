@@ -3,6 +3,7 @@ import UserNotifications
 
 struct ProfileView: View {
     @EnvironmentObject private var planStore: PlanStore
+    @EnvironmentObject private var subscriptions: SubscriptionManager
 
     @AppStorage("notifications_enabled") private var notificationsEnabled = false
     @AppStorage("reminder_hour")         private var reminderHour         = 7
@@ -11,6 +12,7 @@ struct ProfileView: View {
     @State private var showTimePicker      = false
     @State private var notifPermDenied     = false
     @State private var selectedPlan: ReadingPlan?
+    @State private var showPaywall         = false
 
     private var reminderTimeLabel: String {
         let h = reminderHour
@@ -50,6 +52,12 @@ struct ProfileView: View {
                                 .padding(.bottom, 28)
                         }
 
+                        // ── Subscription ──
+                        sectionHeader("Membership")
+                        subscriptionSection
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 28)
+
                         // ── Daily reminder ──
                         sectionHeader("Daily Reminder")
                         reminderSection
@@ -68,6 +76,10 @@ struct ProfileView: View {
             .sheet(item: $selectedPlan) { plan in
                 PlanDetailView(plan: plan)
                     .environmentObject(planStore)
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(reason: .lockedPlan(planTitle: "Premium"))
+                    .environmentObject(subscriptions)
             }
             .alert("Notifications Blocked", isPresented: $notifPermDenied) {
                 Button("Open Settings") {
@@ -215,6 +227,80 @@ struct ProfileView: View {
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.dddGold.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Subscription
+
+    private var subscriptionSection: some View {
+        VStack(spacing: 0) {
+            if subscriptions.isSubscribed {
+                settingsRow {
+                    HStack {
+                        Label("Membership", systemImage: "crown.fill")
+                            .foregroundColor(.dddIvory)
+                        Spacer()
+                        Text("PREMIUM")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.dddGold)
+                            .cornerRadius(8)
+                    }
+                }
+
+                Divider().background(Color.white.opacity(0.08))
+
+                settingsRow {
+                    Button {
+                        Task { await subscriptions.restorePurchases() }
+                    } label: {
+                        HStack {
+                            Label("Restore Purchases", systemImage: "arrow.counterclockwise")
+                                .foregroundColor(.dddIvory)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Button { showPaywall = true } label: {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.dddGold.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "crown.fill")
+                                .foregroundColor(.dddGold)
+                                .font(.callout)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Upgrade to Premium")
+                                .font(.system(size: 16, weight: .semibold, design: .serif))
+                                .foregroundColor(.dddIvory)
+                            Text("Unlock all plans & offline downloads")
+                                .font(.caption)
+                                .foregroundColor(.dddIvory.opacity(0.55))
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.dddGold.opacity(0.6))
+                    }
+                    .padding(16)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color.white.opacity(0.06))
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(
+            subscriptions.isSubscribed ? Color.dddGold.opacity(0.4) : Color.white.opacity(0.1),
+            lineWidth: 1
+        ))
     }
 
     // MARK: Daily Reminder

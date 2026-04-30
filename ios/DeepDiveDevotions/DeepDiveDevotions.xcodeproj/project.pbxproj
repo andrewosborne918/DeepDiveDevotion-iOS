@@ -260,8 +260,6 @@
 		B34142352F9873BF007706E5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SUPABASE_URL = "https://peqykopvhgksroncqziu.supabase.co";
-				SUPABASE_ANON_KEY = "sb_publishable_l1Welt-lD6INjphDkLmp_Q_wEjSzNOP";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
@@ -279,6 +277,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.aosborne.DeepDiveDevotions;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPABASE_ANON_KEY = "sb_publishable_l1Welt-lD6INjphDkLmp_Q_wEjSzNOP";
+				SUPABASE_URL = "https://peqykopvhgksroncqziu.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -295,10 +295,8 @@
 		B34142362F9873BF007706E5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SUPABASE_URL = "https://peqykopvhgksroncqziu.supabase.co";
-				SUPABASE_ANON_KEY = "sb_publishable_l1Welt-lD6INjphDkLmp_Q_wEjSzNOP";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2W24C6M574;
@@ -314,6 +312,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.aosborne.DeepDiveDevotions;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPABASE_ANON_KEY = "sb_publishable_l1Welt-lD6INjphDkLmp_Q_wEjSzNOP";
+				SUPABASE_URL = "https://peqykopvhgksroncqziu.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
