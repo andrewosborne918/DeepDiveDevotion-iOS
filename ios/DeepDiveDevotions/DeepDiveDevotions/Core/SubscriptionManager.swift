@@ -8,6 +8,14 @@ enum DDDProduct {
     static let annualID   = "com.aosborne.DeepDiveDevotions.premium.annual"
 }
 
+// MARK: - Helpers
+private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+    switch result {
+    case .verified(let value):    return value
+    case .unverified(_, let err): throw err
+    }
+}
+
 @MainActor
 final class SubscriptionManager: ObservableObject {
     static let shared = SubscriptionManager()
@@ -93,7 +101,7 @@ final class SubscriptionManager: ObservableObject {
     private func listenForTransactions() -> Task<Void, Error> {
         Task.detached(priority: .background) { [weak self] in
             for await result in Transaction.updates {
-                if let transaction = try? self?.checkVerified(result) {
+                if let transaction = try? checkVerified(result) {
                     await transaction.finish()
                     await self?.refresh()
                 }
@@ -101,10 +109,4 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
-    private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
-        switch result {
-        case .verified(let value):   return value
-        case .unverified(_, let err): throw err
-        }
-    }
 }
