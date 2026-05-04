@@ -20,7 +20,8 @@ final class AudioPlayerManager: ObservableObject {
     private var endObserver: Any?
     private var interruptionObserver: Any?
     private var resumePositions: [String: Double] = [:]
-    private var ninetyPercentFired: Set<String> = []    private var cachedArtworkEpisodeId: String?
+    private var ninetyPercentFired: Set<String> = []
+    private var cachedArtworkEpisodeId: String?
     private var cachedArtwork: MPMediaItemArtwork?    private let speedKey          = "player_playback_rate"
     private let recentlyPlayedKey  = "player_recently_played"
 
