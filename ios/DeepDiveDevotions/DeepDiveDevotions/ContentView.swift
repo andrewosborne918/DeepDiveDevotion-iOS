@@ -1,9 +1,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var player = AudioPlayerManager.shared
-    @StateObject private var planStore = PlanStore.shared
+    @StateObject private var player        = AudioPlayerManager.shared
+    @StateObject private var planStore     = PlanStore.shared
     @StateObject private var subscriptions = SubscriptionManager.shared
+    @StateObject private var downloads     = DownloadManager.shared
     @State private var selectedTab = 0
     @State private var showNowPlaying = false
 
@@ -13,11 +14,14 @@ struct ContentView: View {
                 HomeView(onBrowseAll: { selectedTab = 1 })
                     .environmentObject(planStore)
                     .environmentObject(subscriptions)
+                    .environmentObject(downloads)
                     .tabItem { Label("Today", systemImage: "sun.max") }
                     .tag(0)
 
                 ChaptersView()
                     .environmentObject(planStore)
+                    .environmentObject(subscriptions)
+                    .environmentObject(downloads)
                     .tabItem { Label("Browse", systemImage: "books.vertical") }
                     .tag(1)
 
@@ -31,6 +35,7 @@ struct ContentView: View {
                     .environmentObject(planStore)
                     .environmentObject(player)
                     .environmentObject(subscriptions)
+                    .environmentObject(downloads)
                 .tabItem { Label("Profile", systemImage: "person") }
                 .tag(3)
             }
@@ -77,10 +82,12 @@ struct ContentView: View {
                     .environmentObject(player)
                     .environmentObject(planStore)
                     .environmentObject(subscriptions)
+                    .environmentObject(downloads)
                 }
             }
         }
         .environmentObject(player)
         .environmentObject(subscriptions)
+        .environmentObject(downloads)
     }
 }

@@ -4,6 +4,7 @@ import UserNotifications
 struct ProfileView: View {
     @EnvironmentObject private var planStore: PlanStore
     @EnvironmentObject private var subscriptions: SubscriptionManager
+    @EnvironmentObject private var downloads: DownloadManager
 
     @AppStorage("notifications_enabled") private var notificationsEnabled = false
     @AppStorage("reminder_hour")         private var reminderHour         = 7
@@ -13,6 +14,7 @@ struct ProfileView: View {
     @State private var notifPermDenied     = false
     @State private var selectedPlan: ReadingPlan?
     @State private var showPaywall         = false
+    @State private var showDeleteAllConfirm = false
 
     private var reminderTimeLabel: String {
         let h = reminderHour
@@ -58,6 +60,14 @@ struct ProfileView: View {
                             .padding(.horizontal, 20)
                             .padding(.bottom, 28)
 
+                        // ── Downloads (subscribers only) ──
+                        if subscriptions.isSubscribed {
+                            sectionHeader("Downloads")
+                            downloadsSection
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 28)
+                        }
+
                         // ── Daily reminder ──
                         sectionHeader("Daily Reminder")
                         reminderSection
@@ -81,8 +91,12 @@ struct ProfileView: View {
                 PaywallView(reason: .lockedPlan(planTitle: "Premium"))
                     .environmentObject(subscriptions)
             }
-            .alert("Notifications Blocked", isPresented: $notifPermDenied) {
-                Button("Open Settings") {
+            .confirmationDialog("Delete All Downloads?", isPresented: $showDeleteAllConfirm, titleVisibility: .visible) {
+            Button("Delete All", role: .destructive) { downloads.deleteAll() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will remove all \(downloads.downloadedEpisodes.count) downloaded episodes from your device.")
+        }                Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
@@ -227,6 +241,67 @@ struct ProfileView: View {
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.dddGold.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Downloads
+
+    private var downloadsSection: some View {
+        VStack(spacing: 0) {
+            if downloads.downloadedEpisodes.isEmpty {
+                settingsRow {
+                    HStack {
+                        Label("No downloads yet", systemImage: "arrow.down.circle")
+                            .foregroundColor(.dddIvory.opacity(0.5))
+                        Spacer()
+                    }
+                }
+            } else {
+                ForEach(downloads.downloadedEpisodes) { ep in
+                    settingsRow {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(ep.scriptureReference ?? ep.title)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.dddIvory)
+                                Text(downloads.formattedSize(ep.fileSizeBytes))
+                                    .font(.caption)
+                                    .foregroundColor(.dddIvory.opacity(0.45))
+                            }
+                            Spacer()
+                            Button {
+                                downloads.delete(ep.id)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.red.opacity(0.75))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if ep.id != downloads.downloadedEpisodes.last?.id {
+                        Divider().background(Color.white.opacity(0.08))
+                    }
+                }
+
+                Divider().background(Color.white.opacity(0.08))
+
+                settingsRow {
+                    Button {
+                        showDeleteAllConfirm = true
+                    } label: {
+                        HStack {
+                            Label("Delete All Downloads", systemImage: "trash.fill")
+                                .foregroundColor(.red)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .background(Color.white.opacity(0.06))
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
     }
 
     // MARK: Subscription
