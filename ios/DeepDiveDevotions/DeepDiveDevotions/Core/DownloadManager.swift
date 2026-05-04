@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 struct DownloadedEpisode: Codable, Identifiable {
     let id: String
