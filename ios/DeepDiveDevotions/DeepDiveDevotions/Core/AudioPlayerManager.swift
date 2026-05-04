@@ -20,8 +20,8 @@ final class AudioPlayerManager: ObservableObject {
     private var endObserver: Any?
     private var interruptionObserver: Any?
     private var resumePositions: [String: Double] = [:]
-    private var ninetyPercentFired: Set<String> = []
-    private let speedKey          = "player_playback_rate"
+    private var ninetyPercentFired: Set<String> = []    private var cachedArtworkEpisodeId: String?
+    private var cachedArtwork: MPMediaItemArtwork?    private let speedKey          = "player_playback_rate"
     private let recentlyPlayedKey  = "player_recently_played"
 
     private init() {
@@ -135,17 +135,24 @@ final class AudioPlayerManager: ObservableObject {
         if let ref = episode.scriptureReference {
             info[MPMediaItemPropertyAlbumTitle] = ref
         }
+        // Reuse cached artwork to prevent CarPlay flickering
+        if let cached = cachedArtwork, cachedArtworkEpisodeId == episode.id {
+            info[MPMediaItemPropertyArtwork] = cached
+        }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
-        // Load thumbnail asynchronously
-        if let thumbURL = episode.thumbnailURL {
+        // Load thumbnail only when the episode changes
+        if let thumbURL = episode.thumbnailURL, cachedArtworkEpisodeId != episode.id {
+            let episodeId = episode.id
             Task.detached {
                 if let data = try? Data(contentsOf: thumbURL),
                    let image = UIImage(data: data) {
                     let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                    var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                    updated[MPMediaItemPropertyArtwork] = artwork
                     await MainActor.run {
+                        self.cachedArtwork = artwork
+                        self.cachedArtworkEpisodeId = episodeId
+                        var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                        updated[MPMediaItemPropertyArtwork] = artwork
                         MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
                     }
                 }

@@ -84,21 +84,13 @@ struct EpisodeDetailView: View {
 
                     HStack(spacing: 0) {
                         tabButton("Transcript", index: 0)
-                        tabButton("About", index: 1)
-                        tabButton("Bible", index: 2)
+                        tabButton("Bible", index: 1)
                     }
                     .background(Color.black.opacity(0.22))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
                     if selectedTab == 0 {
                         transcriptView
-                    } else if selectedTab == 1 {
-                        Text(displayEpisode.description ?? "No description available")
-                            .foregroundStyle(Color.dddIvory)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                            .background(Color.black.opacity(0.2))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     } else {
                         bibleView
                     }
@@ -256,7 +248,7 @@ struct EpisodeDetailView: View {
         let book    = displayEpisode.bookName ?? ""
         let chapter = displayEpisode.chapterNumber ?? 1
         let abbr    = usfmAbbreviations[book.lowercased()] ?? book.uppercased()
-        let urlStr  = "https://www.bible.com/bible/1/\(abbr).\(chapter)"
+        let urlStr  = "https://www.bible.com/bible/59/\(abbr).\(chapter)"
         let url     = URL(string: urlStr)!
 
         return VStack(spacing: 16) {
