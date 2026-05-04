@@ -96,7 +96,9 @@ struct ProfileView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will remove all \(downloads.downloadedEpisodes.count) downloaded episodes from your device.")
-        }                Button("Open Settings") {
+        }
+        .alert("Notifications Blocked", isPresented: $notifPermDenied) {
+                Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }

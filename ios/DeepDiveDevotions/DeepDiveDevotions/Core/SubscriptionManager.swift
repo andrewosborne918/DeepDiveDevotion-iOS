@@ -9,7 +9,7 @@ enum DDDProduct {
 }
 
 // MARK: - Helpers
-private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+nonisolated private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
     switch result {
     case .verified(let value):    return value
     case .unverified(_, let err): throw err
