@@ -44,7 +44,7 @@ final class AudioPlayerManager: ObservableObject {
         // Re-affirm category here in case something changed since app launch
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth, .allowBluetoothA2DP])
+            try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
             try session.setActive(true)
         } catch {
             print("[Audio] session setup error: \(error)")
@@ -103,22 +103,27 @@ final class AudioPlayerManager: ObservableObject {
     private func setupRemoteControls() {
         let center = MPRemoteCommandCenter.shared()
         center.playCommand.addTarget { [weak self] _ in
-            self?.toggle(); return .success
+            Task { @MainActor [weak self] in self?.toggle() }
+            return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
-            self?.toggle(); return .success
+            Task { @MainActor [weak self] in self?.toggle() }
+            return .success
         }
         center.skipForwardCommand.preferredIntervals = [30]
         center.skipForwardCommand.addTarget { [weak self] _ in
-            self?.skip(30); return .success
+            Task { @MainActor [weak self] in self?.skip(30) }
+            return .success
         }
         center.skipBackwardCommand.preferredIntervals = [15]
         center.skipBackwardCommand.addTarget { [weak self] _ in
-            self?.skip(-15); return .success
+            Task { @MainActor [weak self] in self?.skip(-15) }
+            return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let e = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            self?.seek(to: e.positionTime)
+            let pos = e.positionTime
+            Task { @MainActor [weak self] in self?.seek(to: pos) }
             return .success
         }
     }
@@ -143,20 +148,20 @@ final class AudioPlayerManager: ObservableObject {
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
-        // Load thumbnail only when the episode changes
+        // Load thumbnail only when the episode changes (async so it never blocks playback)
         if let thumbURL = episode.thumbnailURL, cachedArtworkEpisodeId != episode.id {
             let episodeId = episode.id
-            Task.detached {
-                if let data = try? Data(contentsOf: thumbURL),
-                   let image = UIImage(data: data) {
-                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                    await MainActor.run {
-                        self.cachedArtwork = artwork
-                        self.cachedArtworkEpisodeId = episodeId
-                        var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                        updated[MPMediaItemPropertyArtwork] = artwork
-                        MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
-                    }
+            Task { [weak self] in
+                guard let (data, _) = try? await URLSession.shared.data(from: thumbURL),
+                      let image = UIImage(data: data) else { return }
+                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.cachedArtwork = artwork
+                    self.cachedArtworkEpisodeId = episodeId
+                    var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                    updated[MPMediaItemPropertyArtwork] = artwork
+                    MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
                 }
             }
         }
@@ -166,7 +171,7 @@ final class AudioPlayerManager: ObservableObject {
         guard let url = episode.audioURL else { return }
 
         // Re-activate session every time — ensures recovery after interruptions or route changes
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth, .allowBluetoothA2DP])
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
         try? AVAudioSession.sharedInstance().setActive(true)
 
         markRecentlyPlayed(episode)
@@ -220,20 +225,22 @@ final class AudioPlayerManager: ObservableObject {
         guard let player else { return }
 
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self] _ in
-            guard let self, let item = player.currentItem else { return }
-            self.currentTime = item.currentTime().seconds
-            self.duration = item.duration.seconds.isFinite ? item.duration.seconds : 1
-            if let id = self.currentEpisode?.id {
-                self.resumePositions[id] = self.currentTime
-                // Fire completion at 90% so plan marks the step done before the very end
-                if self.duration > 0,
-                   self.currentTime / self.duration >= 0.9,
-                   !self.ninetyPercentFired.contains(id) {
-                    self.ninetyPercentFired.insert(id)
-                    self.finishedEpisodeId = id
+            guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self, let item = self.player?.currentItem else { return }
+                self.currentTime = item.currentTime().seconds
+                self.duration = item.duration.seconds.isFinite ? item.duration.seconds : 1
+                if let id = self.currentEpisode?.id {
+                    self.resumePositions[id] = self.currentTime
+                    if self.duration > 0,
+                       self.currentTime / self.duration >= 0.9,
+                       !self.ninetyPercentFired.contains(id) {
+                        self.ninetyPercentFired.insert(id)
+                        self.finishedEpisodeId = id
+                    }
                 }
+                self.updateNowPlaying()
             }
-            self.updateNowPlaying()
         }
 
         // Notify when episode plays to end
