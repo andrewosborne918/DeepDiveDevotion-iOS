@@ -282,8 +282,8 @@ struct EpisodeDetailView: View {
         let chapter = displayEpisode.chapterNumber ?? 1
         let abbr    = usfmAbbreviations[book.lowercased()] ?? book.uppercased()
         // Universal link — iOS opens in YouVersion if installed, Safari otherwise.
-        // Version 111 = NIV. bible.com/bible/{version}/{BOOK}.{CHAPTER}
-        let bibleURL = URL(string: "https://www.bible.com/bible/111/\(abbr).\(chapter)")!
+        // Version 59 = ESV. bible.com/bible/{version}/{BOOK}.{CHAPTER}
+        let bibleURL = URL(string: "https://www.bible.com/bible/59/\(abbr).\(chapter)")!
 
         return VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
