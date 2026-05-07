@@ -281,10 +281,9 @@ struct EpisodeDetailView: View {
         let book    = displayEpisode.bookName ?? ""
         let chapter = displayEpisode.chapterNumber ?? 1
         let abbr    = usfmAbbreviations[book.lowercased()] ?? book.uppercased()
-        // Opens YouVersion app directly to the chapter in the user's selected version
-        let appURL  = URL(string: "youversion://bible?reference=\(abbr).\(chapter).1")!
-        // Fallback: bible.com without a version ID — redirects to user's default version if logged in
-        let webURL  = URL(string: "https://www.bible.com/bible/\(abbr).\(chapter)")!
+        // Universal link — iOS opens in YouVersion if installed, Safari otherwise.
+        // Version 111 = NIV. bible.com/bible/{version}/{BOOK}.{CHAPTER}
+        let bibleURL = URL(string: "https://www.bible.com/bible/111/\(abbr).\(chapter)")!
 
         return VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
@@ -301,11 +300,7 @@ struct EpisodeDetailView: View {
             }
 
             Button {
-                if UIApplication.shared.canOpenURL(appURL) {
-                    openURL(appURL)
-                } else {
-                    openURL(webURL)
-                }
+                openURL(bibleURL)
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.up.right.square")
