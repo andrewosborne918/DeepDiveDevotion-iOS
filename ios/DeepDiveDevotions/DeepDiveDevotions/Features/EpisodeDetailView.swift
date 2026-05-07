@@ -281,9 +281,10 @@ struct EpisodeDetailView: View {
         let book    = displayEpisode.bookName ?? ""
         let chapter = displayEpisode.chapterNumber ?? 1
         let abbr    = usfmAbbreviations[book.lowercased()] ?? book.uppercased()
-        // youversion:// opens in the user's currently-selected version; fallback to bible.com search
-        let appURL  = URL(string: "youversion://bible?reference=\(abbr).\(chapter)")!
-        let webURL  = URL(string: "https://www.bible.com/search/bible?q=\(book.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? book)%20\(chapter)")!
+        // Opens YouVersion app directly to the chapter in the user's selected version
+        let appURL  = URL(string: "youversion://bible?reference=\(abbr).\(chapter).1")!
+        // Fallback: bible.com without a version ID — redirects to user's default version if logged in
+        let webURL  = URL(string: "https://www.bible.com/bible/\(abbr).\(chapter)")!
 
         return VStack(spacing: 16) {
             Image(systemName: "book.closed.fill")
