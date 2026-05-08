@@ -113,7 +113,14 @@ struct PaywallView: View {
 
                         // Product options
                         if subscriptions.products.isEmpty {
-                            ProgressView().tint(.dddGold)
+                            VStack(spacing: 12) {
+                                ProgressView().tint(.dddGold)
+                                Button("Retry") {
+                                    Task { await subscriptions.refresh() }
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.dddGold)
+                            }
                         } else {
                             VStack(spacing: 12) {
                                 ForEach(subscriptions.products) { product in

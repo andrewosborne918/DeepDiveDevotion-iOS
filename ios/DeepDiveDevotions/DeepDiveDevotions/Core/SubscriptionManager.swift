@@ -77,7 +77,7 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Private
 
-    func refresh() async {
+    public func refresh() async {
         // Load products
         do {
             let fetched = try await Product.products(for: [DDDProduct.monthlyID, DDDProduct.annualID])
