@@ -24,6 +24,7 @@ final class SubscriptionManager: ObservableObject {
     @Published private(set) var products: [Product] = []
     @Published private(set) var isPurchasing: Bool = false
     @Published private(set) var purchaseError: String?
+    @Published private(set) var productLoadError: String?
 
     private var transactionListener: Task<Void, Error>?
 
@@ -82,7 +83,9 @@ final class SubscriptionManager: ObservableObject {
         do {
             let fetched = try await Product.products(for: [DDDProduct.monthlyID, DDDProduct.annualID])
             products = fetched.sorted { $0.price < $1.price }
+            productLoadError = fetched.isEmpty ? "No products returned for IDs: \(DDDProduct.monthlyID), \(DDDProduct.annualID)" : nil
         } catch {
+            productLoadError = error.localizedDescription
             print("[Subscriptions] product fetch error: \(error)")
         }
 

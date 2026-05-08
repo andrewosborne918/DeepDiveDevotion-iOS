@@ -115,6 +115,13 @@ struct PaywallView: View {
                         if subscriptions.products.isEmpty {
                             VStack(spacing: 12) {
                                 ProgressView().tint(.dddGold)
+                                if let err = subscriptions.productLoadError {
+                                    Text(err)
+                                        .font(.caption2)
+                                        .foregroundColor(.red.opacity(0.8))
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 20)
+                                }
                                 Button("Retry") {
                                     Task { await subscriptions.refresh() }
                                 }
